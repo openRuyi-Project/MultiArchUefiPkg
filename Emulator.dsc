@@ -224,4 +224,5 @@
 [BuildOptions]
 !if $(ARCH) == RISCV64
   *_*_*_CC_FLAGS                       = -Os
+  GCC:*_*_*_DLINK_FLAGS                = -z common-page-size=0x1000
 !endif
