@@ -40,6 +40,7 @@ ObjectAllocCreate (
   ObjectSize = ROUND_UP (Config->ObjectSize, Config->ObjectAlignment);
 
   if (ObjectSize < sizeof (ObjectHeader)) {
+    FreePool (ObjectContext);
     return EFI_INVALID_PARAMETER;
   }
 
@@ -56,6 +57,7 @@ ObjectAllocCreate (
   ZeroMem (ObjectContext->Arena, ObjectContext->ArenaSize);
   InitializeListHead (&ObjectContext->List);
 
+  Status = EFI_SUCCESS;
   for (Object = ObjectContext->Arena, Index = 0;
        Index < Config->ObjectCount;
        Object = (VOID *)(((UINTN)Object) + ObjectSize), Index++)
