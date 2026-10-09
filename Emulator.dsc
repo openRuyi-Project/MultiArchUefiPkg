@@ -15,7 +15,10 @@
   PLATFORM_GUID                  = 62ad1d2c-27bf-4021-b32d-268d0e71c032
   PLATFORM_VERSION               = 0.98
   DSC_SPECIFICATION              = 0x00010005
-  OUTPUT_DIRECTORY               = Build/MultiArchUefiPkg
+!ifndef MAU_OUTPUT_DIRECTORY
+  DEFINE MAU_OUTPUT_DIRECTORY = Build/MultiArchUefiPkg
+!endif
+  OUTPUT_DIRECTORY               = $(MAU_OUTPUT_DIRECTORY)
   SUPPORTED_ARCHITECTURES        = AARCH64|RISCV64|LOONGARCH64
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
   SKUID_IDENTIFIER               = DEFAULT
@@ -44,14 +47,14 @@
   # handler. It won't work well and is only supported on RISC-V.
   # Implies MAU_WRAPPED_ENTRY_POINTS=YES.
   #
-  # On by default in RISC-V builds (via INF file).
+  # Disabled by default; select explicitly in builds that need it.
   #
   MAU_TRY_WITHOUT_MMU            = NO
   #
   # Use an emulated entry point, instead of relying on
   # exception-driven thunking of native to emulated code.
   #
-  # On by default in RISC-V builds (via INF file).
+  # Disabled by default; select explicitly in builds that need it.
   #
   MAU_WRAPPED_ENTRY_POINTS       = NO
   #
@@ -92,6 +95,7 @@
   #
   UC_LTO_JOBS                    = auto
 
+!include MdePkg/MdeLibs.dsc.inc
 !include MultiArchUefiPkg.dsc.inc
 
 [PcdsFixedAtBuild.common]
@@ -157,7 +161,7 @@
   # Since software stack checking may be heuristically enabled by the compiler
   # include BaseStackCheckLib unconditionally.
   #
-  NULL|MdePkg/Library/BaseStackCheckLib/BaseStackCheckLib.inf
+  StackCheckLib|MdePkg/Library/StackCheckLibNull/StackCheckLibNull.inf
   #
   # Misc.
   #
@@ -202,9 +206,11 @@
   CacheMaintenanceLib|ArmPkg/Library/ArmCacheMaintenanceLib/ArmCacheMaintenanceLib.inf
 
 [LibraryClasses.RISCV64]
+  FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf
+  HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
   SynchronizationLib|MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib.inf
-  CpuExceptionHandlerLib|UefiCpuPkg/Library/BaseRiscV64CpuExceptionHandlerLib/BaseRiscV64CpuExceptionHandlerLib.inf
-  TimerLib|UefiCpuPkg/Library/BaseRiscV64CpuTimerLib/BaseRiscV64CpuTimerLib.inf
+  CpuExceptionHandlerLib|UefiCpuPkg/Library/CpuExceptionHandlerLib/DxeCpuExceptionHandlerLib.inf
+  TimerLib|UefiCpuPkg/Library/RiscV64CpuTimerLib/RiscV64CpuTimerDxeLib.inf
   CacheMaintenanceLib|MdePkg/Library/BaseCacheMaintenanceLib/BaseCacheMaintenanceLib.inf
 
 [LibraryClasses.LOONGARCH64]

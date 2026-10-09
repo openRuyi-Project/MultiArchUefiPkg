@@ -35,6 +35,7 @@
   UefiBootServicesTableLib
   DebugLib
   BaseLib
+  StackCheckLib
 
 [Protocols]
   gEfiLoadedImageProtocolGuid                   ## SOMETIMES_CONSUMES

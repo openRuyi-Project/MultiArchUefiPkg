@@ -165,9 +165,9 @@ Note: this is always forced on if you enable `MAU_TRY_WITHOUT_MMU=YES`.
 
 #### RISC-V Notes
 
-As of December 9th 2023, RISC-V builds still default to `MAU_TRY_WITHOUT_MMU=YES`
-and `MAU_WRAPPED_ENTRY_POINTS=YES`. This is still necessary as not all
-TianoCore EDK2 platforms enable the upstreamed MMU support.
+RISC-V builds use MMU execute protection by default. The legacy
+`MAU_TRY_WITHOUT_MMU` and `MAU_WRAPPED_ENTRY_POINTS` paths are enabled
+only when explicitly selected in the DSC or build command.
 
 ### X64 Binaries
 
@@ -227,3 +227,20 @@ generated as part of a [standalone driver build](#quick-start):
 
         $ build -a RISCV64 -t GCC -p MultiArchUefiPkg/Emulator.dsc -b RELEASE
         $ cp  `find Build/MultiArchUefiPkg/ | grep depex | sed 1q` MultiArchUefiPkg/Drivers/EmulatorBin/EmulatorDxe.depex
+
+## Current EDK2 RISC-V build
+
+The RISC-V library bindings support edk2-stable202608. With this package,
+`unicorn` and `edk2` in sibling directories, build the X64 emulator with:
+
+```sh
+make TARGET=RELEASE MAU_BUILD_DIR=/absolute/output
+```
+
+The Makefile uses the MMU path and forwards port I/O to
+EFI_CPU_IO2_PROTOCOL. It does not enable AArch64 guest support. `TARGET`,
+`EDK2_DIR`, `CROSS_COMPILE`, `PYTHON` and `JOBS` may be overridden.
+The standalone DSC also accepts `MAU_OUTPUT_DIRECTORY`; its default
+remains `Build/MultiArchUefiPkg`. Generated configuration stays in the
+selected build directory. This build check is not runtime validation of
+all host platforms or third-party Option ROMs.
