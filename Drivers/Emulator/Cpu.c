@@ -474,7 +474,7 @@ CpuAArch64EmuThunkPost (
          * some variable on the stack, not an actual argument.
          */
         DEBUG ((
-          DEBUG_ERROR,
+          DEBUG_VERBOSE,
           "Possible Arg%u mismatch (got 0x%lx instead of 0x%lx)\n",
           Index,
           Val,
@@ -601,7 +601,7 @@ CpuX64EmuThunkPost (
          * some variable on the stack, not an actual argument.
          */
         DEBUG ((
-          DEBUG_ERROR,
+          DEBUG_VERBOSE,
           "Possible Arg%u mismatch (got 0x%lx instead of 0x%lx)\n",
           Index,
           Val,
@@ -1588,7 +1588,6 @@ CpuRunImage (
   ASSERT (Record->Cpu != NULL);
 
   Context = CpuAllocContext (Record->Cpu);
-  DEBUG ((DEBUG_ERROR, "Ctx %p vs %p\n", Context->Cpu, Record->Cpu));
   if (Context == NULL) {
     DEBUG ((DEBUG_ERROR, "Could not allocate CpuRunContext\n"));
     return EFI_OUT_OF_RESOURCES;
