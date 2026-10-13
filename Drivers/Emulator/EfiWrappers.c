@@ -10,6 +10,7 @@
 **/
 
 #include "Emulator.h"
+#include <Protocol/PciIo.h>
 
 /*
  * EfiWrappers modify the UEFI environment presented to non-native
@@ -198,11 +199,187 @@ EfiWrapperCreateEventCommon (
 
 #endif /* MAU_WRAPPED_ENTRY_POINTS */
 
+typedef struct {
+  LIST_ENTRY                    Link;
+  EFI_PCI_IO_PROTOCOL_IO_MEM    Functions[4];
+} PCI_IO_ACCESS_RECORD;
+
+STATIC LIST_ENTRY  mPciIoAccessList = INITIALIZE_LIST_HEAD_VARIABLE (mPciIoAccessList);
+
+STATIC
+EFI_STATUS
+EfiWrapperPciIoAccess (
+  IN UINT64  OriginalProgramCounter,
+  IN UINT64  ReturnAddress,
+  IN UINT64  *Args
+  )
+{
+  EFI_PCI_IO_PROTOCOL_IO_MEM  Access;
+
+  Access = (EFI_PCI_IO_PROTOCOL_IO_MEM)(UINTN)OriginalProgramCounter;
+  return Access (
+           (EFI_PCI_IO_PROTOCOL *)(UINTN)Args[0],
+           (EFI_PCI_IO_PROTOCOL_WIDTH)(UINT32)Args[1],
+           (UINT8)Args[2],
+           Args[3],
+           (UINTN)Args[4],
+           (VOID *)(UINTN)Args[5]
+           );
+}
+
+STATIC
+EFI_STATUS
+EfiWrappersRegisterPciIo (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo
+  )
+{
+  PCI_IO_ACCESS_RECORD        *Record;
+  LIST_ENTRY                  *Link;
+  EFI_PCI_IO_PROTOCOL_IO_MEM  Functions[4] = {
+    PciIo->Mem.Read, PciIo->Mem.Write, PciIo->Io.Read, PciIo->Io.Write
+  };
+
+  // Keep function addresses, not pointers into a removable controller object.
+  for (Link = GetFirstNode (&mPciIoAccessList);
+       !IsNull (&mPciIoAccessList, Link);
+       Link = GetNextNode (&mPciIoAccessList, Link))
+  {
+    Record = BASE_CR (Link, PCI_IO_ACCESS_RECORD, Link);
+    if (CompareMem (Record->Functions, Functions, sizeof (Functions)) == 0) {
+      return EFI_SUCCESS;
+    }
+  }
+
+  Record = AllocatePool (sizeof (*Record));
+  if (Record == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  CopyMem (Record->Functions, Functions, sizeof (Functions));
+  InsertTailList (&mPciIoAccessList, &Record->Link);
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+EfiWrapperHandleProtocol (
+  IN UINT64  OriginalProgramCounter,
+  IN UINT64  ReturnAddress,
+  IN UINT64  *Args
+  )
+{
+  EFI_HANDLE_PROTOCOL  HandleProtocol;
+  EFI_GUID             *Protocol   = (EFI_GUID *)(UINTN)Args[1];
+  VOID                 **Interface = (VOID **)(UINTN)Args[2];
+  EFI_STATUS           Status;
+
+  HandleProtocol = (EFI_HANDLE_PROTOCOL)(UINTN)OriginalProgramCounter;
+  Status         = HandleProtocol ((EFI_HANDLE)(UINTN)Args[0], Protocol, Interface);
+  if (!EFI_ERROR (Status) && CompareGuid (Protocol, &gEfiPciIoProtocolGuid)) {
+    Status = EfiWrappersRegisterPciIo (*Interface);
+  }
+
+  return Status;
+}
+
+STATIC
+EFI_STATUS
+EfiWrapperLocateProtocol (
+  IN UINT64  OriginalProgramCounter,
+  IN UINT64  ReturnAddress,
+  IN UINT64  *Args
+  )
+{
+  EFI_LOCATE_PROTOCOL  LocateProtocol;
+  EFI_GUID             *Protocol   = (EFI_GUID *)(UINTN)Args[0];
+  VOID                 **Interface = (VOID **)(UINTN)Args[2];
+  EFI_STATUS           Status;
+
+  LocateProtocol = (EFI_LOCATE_PROTOCOL)(UINTN)OriginalProgramCounter;
+  Status         = LocateProtocol (Protocol, (VOID *)(UINTN)Args[1], Interface);
+  if (!EFI_ERROR (Status) && CompareGuid (Protocol, &gEfiPciIoProtocolGuid)) {
+    Status = EfiWrappersRegisterPciIo (*Interface);
+  }
+
+  return Status;
+}
+
+/*
+ * x64 callers may leave the upper half of a UINT32 argument unspecified.
+ * RISC-V callees require narrow integer arguments extended to XLEN. Calling
+ * through the declared prototype supplies that extension without truncating
+ * the handles or pointers in the other argument slots.
+ */
+STATIC
+EFI_STATUS
+EfiWrapperOpenProtocol (
+  IN UINT64  OriginalProgramCounter,
+  IN UINT64  ReturnAddress,
+  IN UINT64  *Args
+  )
+{
+  EFI_OPEN_PROTOCOL    OpenProtocol;
+  EFI_GUID             *Protocol = (EFI_GUID *)(UINTN)Args[1];
+  EFI_PCI_IO_PROTOCOL  *PciIo;
+  EFI_STATUS           Status;
+
+  // Discover the native access functions before acquiring BY_DRIVER ownership.
+  // A failed registration must not leave the controller claimed by the driver.
+  if ((Protocol != NULL) && CompareGuid (Protocol, &gEfiPciIoProtocolGuid) &&
+      ((UINT32)Args[5] != EFI_OPEN_PROTOCOL_TEST_PROTOCOL))
+  {
+    Status = gBS->HandleProtocol ((EFI_HANDLE)(UINTN)Args[0], Protocol, (VOID **)&PciIo);
+    if (!EFI_ERROR (Status)) {
+      Status = EfiWrappersRegisterPciIo (PciIo);
+      if (EFI_ERROR (Status)) {
+        return Status;
+      }
+    }
+  }
+
+  OpenProtocol = (EFI_OPEN_PROTOCOL)(UINTN)OriginalProgramCounter;
+  return OpenProtocol (
+           (EFI_HANDLE)(UINTN)Args[0],
+           Protocol,
+           (VOID **)(UINTN)Args[2],
+           (EFI_HANDLE)(UINTN)Args[3],
+           (EFI_HANDLE)(UINTN)Args[4],
+           (UINT32)Args[5]
+           );
+}
+
 UINT64
 EfiWrappersOverride (
   IN  UINT64  ProgramCounter
   )
 {
+  LIST_ENTRY            *Link;
+  PCI_IO_ACCESS_RECORD  *Record;
+
+  if (ProgramCounter == (UINT64)gBS->OpenProtocol) {
+    return (UINT64)EfiWrapperOpenProtocol;
+  }
+
+  if (ProgramCounter == (UINT64)gBS->HandleProtocol) {
+    return (UINT64)EfiWrapperHandleProtocol;
+  }
+
+  if (ProgramCounter == (UINT64)gBS->LocateProtocol) {
+    return (UINT64)EfiWrapperLocateProtocol;
+  }
+
+  for (Link = GetFirstNode (&mPciIoAccessList);
+       !IsNull (&mPciIoAccessList, Link);
+       Link = GetNextNode (&mPciIoAccessList, Link))
+  {
+    Record = BASE_CR (Link, PCI_IO_ACCESS_RECORD, Link);
+    for (UINTN Index = 0; Index < ARRAY_SIZE (Record->Functions); Index++) {
+      if (ProgramCounter == (UINT64)(UINTN)Record->Functions[Index]) {
+        return (UINT64)EfiWrapperPciIoAccess;
+      }
+    }
+  }
+
  #ifdef MAU_WRAPPED_ENTRY_POINTS
   if (ProgramCounter == (UINT64)gBS->CreateEvent) {
     return (UINT64)EfiWrapperCreateEventCommon;

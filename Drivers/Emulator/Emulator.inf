@@ -74,6 +74,7 @@
   UefiLib
 
 [Protocols]
+  gEfiPciIoProtocolGuid                  ## CONSUMES
   gEfiLoadedImageProtocolGuid             ## CONSUMES
   gEfiCpuArchProtocolGuid                 ## CONSUMES
   gEfiCpuIo2ProtocolGuid                  ## CONSUMES
