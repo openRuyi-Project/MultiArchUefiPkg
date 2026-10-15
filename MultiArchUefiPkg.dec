@@ -17,3 +17,11 @@
 
 [Includes]
   Include
+
+[Guids]
+  gMauPkgTokenSpaceGuid = { 0xA2E42AAE, 0x641C, 0x444D, { 0xBB, 0x13, 0x47, 0xA4, 0x8F, 0xA7, 0x19, 0xF9 }}
+
+[PcdsFixedAtBuild, PcdsDynamic, PcdsDynamicEx]
+  ## Allow the platform to disable all compiled-in guest architectures.
+  # Bind to a platform setup variable with DynamicHii or DynamicExHii.
+  gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled|TRUE|BOOLEAN|0x0001

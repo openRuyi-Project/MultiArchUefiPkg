@@ -53,6 +53,11 @@ DriverEntry (
 {
   EFI_STATUS  Status;
 
+  // Evaluate platform policy before publishing the emulator device or binding.
+  if (!PcdGetBool (PcdMauEmulationEnabled)) {
+    return EFI_SUCCESS;
+  }
+
   Status = gBS->HandleProtocol (
                   ImageHandle,
                   &gEfiLoadedImageProtocolGuid,

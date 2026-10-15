@@ -244,3 +244,44 @@ The standalone DSC also accepts `MAU_OUTPUT_DIRECTORY`; its default
 remains `Build/MultiArchUefiPkg`. Generated configuration stays in the
 selected build directory. This build check is not runtime validation of
 all host platforms or third-party Option ROMs.
+
+## Platform emulation policy
+
+`gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled` gates `DriverEntry()` before
+any emulator device or protocol is installed. The package default is
+`TRUE`; platforms can bind it to a setup variable with a different default.
+The driver waits for the variable architectural protocol before evaluating
+policy, so an HII-backed token observes persistent settings.
+
+A source integration may use a fixed or dynamic PCD.
+For a separately built binary, use `make MAU_DYNAMIC_POLICY=TRUE` (or
+`-D MAU_DYNAMIC_POLICY=TRUE` with `Emulator.dsc`). This selects DynamicEx
+access and DxePcdLib so the binary uses the stable token-space GUID and
+token number rather than a build-local PCD number.
+
+The consuming platform must declare this PCD in the binary INF's
+`[PcdEx]` section and supply it in its PCD database. For example:
+
+```ini
+[PcdsDynamicExHii]
+  gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled|L"EmulationConfig"|gPlatformSetupGuid|0x0|FALSE|NV,BS
+```
+
+A platform that reads another persistent store can instead declare:
+
+```ini
+[PcdsDynamicExDefault]
+  gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled|FALSE
+```
+
+Initialize that token before publishing the variable architectural protocol
+so the policy is ready before the emulator can dispatch.
+
+The policy is sampled at driver entry. Saving a changed setting takes
+effect on the next boot. A binary built with `MAU_DYNAMIC_POLICY=TRUE`
+requires that host PCD entry; it is not a general standalone shell driver.
+The default standalone build retains fixed, enabled behavior.
+
+The policy gate follows Chao Wei's
+[Sophgo change 94e536283a6e](https://github.com/sophgo/MultiArchUefiPkg/commit/94e536283a6e23af188f7cd78f417682dde316fe),
+with fixed-policy and DynamicEx binary-integration support added here.

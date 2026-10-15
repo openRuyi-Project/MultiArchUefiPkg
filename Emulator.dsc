@@ -18,6 +18,9 @@
 !ifndef MAU_OUTPUT_DIRECTORY
   DEFINE MAU_OUTPUT_DIRECTORY = Build/MultiArchUefiPkg
 !endif
+!ifndef MAU_DYNAMIC_POLICY
+  DEFINE MAU_DYNAMIC_POLICY = FALSE
+!endif
   OUTPUT_DIRECTORY               = $(MAU_OUTPUT_DIRECTORY)
   SUPPORTED_ARCHITECTURES        = AARCH64|RISCV64|LOONGARCH64
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
@@ -98,6 +101,15 @@
 !include MdePkg/MdeLibs.dsc.inc
 !include MultiArchUefiPkg.dsc.inc
 
+!if $(MAU_DYNAMIC_POLICY) == TRUE
+# Binary integrations use GUID/token lookup against the host PCD database.
+[PcdsDynamicExDefault]
+  gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled|TRUE
+!else
+[PcdsFixedAtBuild]
+  gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled|TRUE
+!endif
+
 [PcdsFixedAtBuild.common]
   # DEBUG_ASSERT_ENABLED       0x01
   # DEBUG_PRINT_ENABLED        0x02
@@ -167,7 +179,11 @@
   #
   DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+!if $(MAU_DYNAMIC_POLICY) == TRUE
+  PcdLib|MdePkg/Library/DxePcdLib/DxePcdLib.inf
+!else
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
+!endif
   PeCoffExtraActionLib|MdePkg/Library/BasePeCoffExtraActionLibNull/BasePeCoffExtraActionLibNull.inf
   #
   # Logging choices.

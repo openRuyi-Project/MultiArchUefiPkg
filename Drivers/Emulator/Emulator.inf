@@ -66,6 +66,7 @@
   BaseLib
   BaseMemoryLib
   DebugLib
+  PcdLib
   PeCoffLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
@@ -73,7 +74,11 @@
   UnicornEngineLib
   UefiLib
 
+[Pcd]
+  gMauPkgTokenSpaceGuid.PcdMauEmulationEnabled
+
 [Protocols]
+  gEfiVariableArchProtocolGuid           ## CONSUMES
   gEfiPciIoProtocolGuid                  ## CONSUMES
   gEfiLoadedImageProtocolGuid             ## CONSUMES
   gEfiCpuArchProtocolGuid                 ## CONSUMES
@@ -81,7 +86,7 @@
   gEdkiiPeCoffImageEmulatorProtocolGuid   ## PRODUCES
 
 [Depex]
-  gEfiCpuArchProtocolGuid AND gEfiCpuIo2ProtocolGuid
+  gEfiCpuArchProtocolGuid AND gEfiCpuIo2ProtocolGuid AND gEfiVariableArchProtocolGuid
 
 [BuildOptions]
   RELEASE_*_*_CC_FLAGS = -DNDEBUG
