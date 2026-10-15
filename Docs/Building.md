@@ -238,7 +238,8 @@ make TARGET=RELEASE MAU_BUILD_DIR=/absolute/output
 ```
 
 The Makefile uses the MMU path and forwards port I/O to
-EFI_CPU_IO2_PROTOCOL. It does not enable AArch64 guest support. `TARGET`,
+EFI_CPU_IO2_PROTOCOL. Add `MAU_SUPPORTS_AARCH64_BINS=YES` to include
+AArch64 guests alongside X64; the default is `NO`. `TARGET`,
 `EDK2_DIR`, `CROSS_COMPILE`, `PYTHON` and `JOBS` may be overridden.
 The standalone DSC also accepts `MAU_OUTPUT_DIRECTORY`; its default
 remains `Build/MultiArchUefiPkg`. Generated configuration stays in the
