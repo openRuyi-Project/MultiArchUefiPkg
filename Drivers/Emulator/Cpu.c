@@ -12,6 +12,7 @@
 
 #include <unicorn.h>
 #include "Emulator.h"
+#include "PciCf8.h"
 
 #define EMU_STACK_SIZE          (1024 * 1024)
 #define NATIVE_STACK_SIZE       (1024 * 1024)
@@ -111,6 +112,10 @@ CpuIoReadCb (
   UINT32  Result = 0;
 
   if (gCpuIo2 != NULL) {
+    if (PciCf8Access (Port, Size, &Result, FALSE)) {
+      return Result;
+    }
+
     switch (Size) {
       case 1:
         gCpuIo2->Io.Read (gCpuIo2, EfiCpuIoWidthUint8, Port, 1, &Result);
@@ -156,6 +161,10 @@ CpuIoWriteCb (
     ));
 
   if (gCpuIo2 != NULL) {
+    if (PciCf8Access (Port, Size, &Value, TRUE)) {
+      return;
+    }
+
     switch (Size) {
       case 1:
         gCpuIo2->Io.Write (gCpuIo2, EfiCpuIoWidthUint8, Port, 1, &Value);
@@ -248,6 +257,7 @@ CpuCleanup (
   )
 {
  #ifdef MAU_SUPPORTS_X64_BINS
+  PciCf8Cleanup ();
   CpuCleanupEx (&CpuX64);
  #endif /* MAU_SUPPORTS_X64_BINS */
  #ifdef MAU_SUPPORTS_AARCH64_BINS
@@ -970,6 +980,14 @@ CpuInit (
   }
 
  #endif /* MAU_SUPPORTS_AARCH64_BINS */
+
+ #ifdef MAU_SUPPORTS_X64_BINS
+  Status = PciCf8Init (gCpuIo2 != NULL);
+  if (EFI_ERROR (Status)) {
+    CpuCleanup ();
+    return Status;
+  }
+ #endif
 
   return EFI_SUCCESS;
 }

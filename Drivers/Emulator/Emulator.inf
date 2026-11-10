@@ -34,6 +34,7 @@
   Native.c
   TestProtocol.c
   ObjectAlloc.c
+  PciCf8.c
 
 [Sources.RISCV64]
   RISCV64/Emulator.c
@@ -79,6 +80,7 @@
 
 [Protocols]
   gEfiVariableArchProtocolGuid           ## CONSUMES
+  gEfiPciRootBridgeIoProtocolGuid        ## CONSUMES
   gEfiPciIoProtocolGuid                  ## CONSUMES
   gEfiLoadedImageProtocolGuid             ## CONSUMES
   gEfiCpuArchProtocolGuid                 ## CONSUMES
