@@ -21,6 +21,9 @@
 !ifndef MAU_DYNAMIC_POLICY
   DEFINE MAU_DYNAMIC_POLICY = FALSE
 !endif
+!ifndef MAU_RISCV_ISA
+  DEFINE MAU_RISCV_ISA = rv64gc
+!endif
   OUTPUT_DIRECTORY               = $(MAU_OUTPUT_DIRECTORY)
   SUPPORTED_ARCHITECTURES        = AARCH64|RISCV64|LOONGARCH64
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
@@ -239,6 +242,7 @@
 
 [BuildOptions]
 !if $(ARCH) == RISCV64
-  *_*_*_CC_FLAGS                       = -Os
-  GCC:*_*_*_DLINK_FLAGS                = -z common-page-size=0x1000
+  *_*_*_CC_FLAGS                       = -Os -march=$(MAU_RISCV_ISA)
+  GCC:*_*_*_ASM_FLAGS                  = -march=$(MAU_RISCV_ISA)
+  GCC:*_*_*_DLINK_FLAGS                = -z common-page-size=0x1000 -march=$(MAU_RISCV_ISA)
 !endif
