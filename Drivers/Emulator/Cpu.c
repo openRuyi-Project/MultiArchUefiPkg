@@ -13,6 +13,9 @@
 #include <unicorn.h>
 #include "Emulator.h"
 #include "PciCf8.h"
+#ifdef MDE_CPU_RISCV64
+#include <Register/RiscV64/RiscVEncoding.h>
+#endif
 
 #define EMU_STACK_SIZE          (1024 * 1024)
 #define NATIVE_STACK_SIZE       (1024 * 1024)
@@ -180,6 +183,50 @@ CpuIoWriteCb (
   }
 }
 
+#ifdef MDE_CPU_RISCV64
+STATIC
+BOOLEAN
+UsesSv39 (
+  VOID
+  )
+{
+  return (RiscVGetSupervisorAddressTranslationRegister () >> SATP64_MODE_SHIFT) == SATP_MODE_SV39;
+}
+
+STATIC
+uint64_t
+CpuHighMmioRead (
+  uc_engine  *Engine,
+  uint64_t   Offset,
+  unsigned   Size,
+  void       *Context
+  )
+{
+  UINT64  Value = 0;
+
+  if (!PciRootMemoryAccess (BIT38 + Offset, Size, &Value, FALSE)) {
+    return MAX_UINT64;
+  }
+
+  return Value;
+}
+
+STATIC
+void
+CpuHighMmioWrite (
+  uc_engine  *Engine,
+  uint64_t   Offset,
+  unsigned   Size,
+  uint64_t   Value,
+  void       *Context
+  )
+{
+  UINT64  Data = Value;
+
+  PciRootMemoryAccess (BIT38 + Offset, Size, &Data, TRUE);
+}
+#endif
+
 STATIC
 UINT64
 CpuNullReadCb (
@@ -256,8 +303,10 @@ CpuCleanup (
   VOID
   )
 {
- #ifdef MAU_SUPPORTS_X64_BINS
+ #if defined (MAU_SUPPORTS_X64_BINS) || defined (MDE_CPU_RISCV64)
   PciCf8Cleanup ();
+ #endif
+ #ifdef MAU_SUPPORTS_X64_BINS
   CpuCleanupEx (&CpuX64);
  #endif /* MAU_SUPPORTS_X64_BINS */
  #ifdef MAU_SUPPORTS_AARCH64_BINS
@@ -701,6 +750,7 @@ CpuInitEx (
   uc_hook  IsNativeHook;
   size_t   UnicornCodeGenSize;
   uc_mode  UcMode;
+  UINT64   DirectLimit;
 
   UcMode = 0;
   Status = EFI_UNSUPPORTED;
@@ -892,10 +942,24 @@ CpuInitEx (
    * Map all memory but the zero page R/W. Some portions are made
    * executable later (e.g. via CpuRegisterCodeRange).
    */
+  DirectLimit = BIT48;
+#ifdef MDE_CPU_RISCV64
+  if (UsesSv39 ()) {
+    // Above 256 GiB a guest physical address cannot be a low Sv39 host
+    // pointer. Only assigned PCI memory resources are accessed here.
+    DirectLimit = BIT38;
+    UcErr = uc_mmio_map (Cpu->UE, DirectLimit, BIT48 - DirectLimit,
+                         CpuHighMmioRead, NULL, CpuHighMmioWrite, NULL);
+    if (UcErr != UC_ERR_OK) {
+      return EFI_DEVICE_ERROR;
+    }
+  }
+
+#endif
   UcErr = uc_mem_map_ptr (
             Cpu->UE,
             EFI_PAGE_SIZE,
-            (1UL << 48) - EFI_PAGE_SIZE,
+            DirectLimit - EFI_PAGE_SIZE,
             UC_PROT_READ | UC_PROT_WRITE,
             (VOID *)EFI_PAGE_SIZE
             );
@@ -981,8 +1045,12 @@ CpuInit (
 
  #endif /* MAU_SUPPORTS_AARCH64_BINS */
 
- #ifdef MAU_SUPPORTS_X64_BINS
+ #if defined (MDE_CPU_RISCV64)
+  Status = PciCf8Init ((gCpuIo2 != NULL) || UsesSv39 ());
+ #elif defined (MAU_SUPPORTS_X64_BINS)
   Status = PciCf8Init (gCpuIo2 != NULL);
+ #endif
+ #if defined (MDE_CPU_RISCV64) || defined (MAU_SUPPORTS_X64_BINS)
   if (EFI_ERROR (Status)) {
     CpuCleanup ();
     return Status;

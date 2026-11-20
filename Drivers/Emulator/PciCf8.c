@@ -236,3 +236,60 @@ PciCf8Access (
 
   return TRUE;
 }
+
+/**
+  Dispatch a guest physical access only when it falls inside an assigned
+  PCI memory aperture. Configuration() reports the host view. Mem.Read()
+  and Mem.Write() use the PCI bus address.
+**/
+BOOLEAN
+PciRootMemoryAccess (
+  IN UINT64       Address,
+  IN UINT32       Size,
+  IN OUT UINT64   *Value,
+  IN BOOLEAN      Write
+  )
+{
+  LIST_ENTRY                             *Link;
+  EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL        *Io;
+  EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH  Width;
+  EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR      *Resource;
+  EFI_STATUS                             Status;
+  UINT64                                 Offset;
+  UINT64                                 BusAddress;
+
+  switch (Size) {
+    case 1: Width = EfiPciWidthUint8;  break;
+    case 2: Width = EfiPciWidthUint16; break;
+    case 4: Width = EfiPciWidthUint32; break;
+    case 8: Width = EfiPciWidthUint64; break;
+    default: return FALSE;
+  }
+
+  for (Link = GetFirstNode (&mRoots); !IsNull (&mRoots, Link); Link = GetNextNode (&mRoots, Link)) {
+    PCI_CF8_ROOT *Root = BASE_CR (Link, PCI_CF8_ROOT, Link);
+    Status = gBS->HandleProtocol (Root->Handle, &gEfiPciRootBridgeIoProtocolGuid, (VOID **)&Io);
+    if (EFI_ERROR (Status) || EFI_ERROR (Io->Configuration (Io, (VOID **)&Resource))) {
+      continue;
+    }
+
+    for ( ; (Resource != NULL) && (Resource->Desc == ACPI_ADDRESS_SPACE_DESCRIPTOR) &&
+            (Resource->Len == sizeof (*Resource) - 3); Resource++) {
+      if ((Resource->ResType != ACPI_ADDRESS_SPACE_TYPE_MEM) || (Address < Resource->AddrRangeMin)) {
+        continue;
+      }
+
+      Offset = Address - Resource->AddrRangeMin;
+      if ((Size > Resource->AddrLen) || (Offset > Resource->AddrLen - Size)) {
+        continue;
+      }
+
+      BusAddress = Address + Resource->AddrTranslationOffset;
+      Status = Write ? Io->Mem.Write (Io, Width, BusAddress, 1, Value) :
+                       Io->Mem.Read (Io, Width, BusAddress, 1, Value);
+      return !EFI_ERROR (Status);
+    }
+  }
+
+  return FALSE;
+}

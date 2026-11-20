@@ -15,3 +15,6 @@ PciCf8Cleanup (VOID);
 
 BOOLEAN
 PciCf8Access (IN UINT32 Port, IN UINT32 Size, IN OUT UINT32 *Value, IN BOOLEAN Write);
+
+BOOLEAN
+PciRootMemoryAccess (IN UINT64 Address, IN UINT32 Size, IN OUT UINT64 *Value, IN BOOLEAN Write);
